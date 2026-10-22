@@ -1,0 +1,44 @@
+{
+  "name": "@parishodh/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:generate:postgres": "prisma generate --schema=prisma/schema.postgres.prisma",
+    "db:push:postgres": "prisma db push --schema=prisma/schema.postgres.prisma"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.3",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/jwt": "^8.0.1",
+    "@fastify/rate-limit": "^9.1.0",
+    "@parishodh/shared": "workspace:*",
+    "@prisma/client": "^5.19.1",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
+    "fastify-plugin": "^4.5.1",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.7.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.15",
+    "prisma": "^5.19.1",
+    "socket.io-client": "^4.7.5",
+    "tsx": "^4.17.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

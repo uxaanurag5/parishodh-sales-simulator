@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+dist
+**/dist
+build
+**/build
+.turbo
+coverage
+**/coverage
+*.log
+.env
+.env.*.local
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
+.git

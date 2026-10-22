@@ -1,0 +1,64 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: parishodh
+      POSTGRES_PASSWORD: parishodh
+      POSTGRES_DB: parishodh
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parishodh"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://parishodh:parishodh@db:5432/parishodh
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+      PORT: 4000
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_MODEL_CUSTOMER: ${AI_MODEL_CUSTOMER:-}
+      AI_MODEL_COACH: ${AI_MODEL_COACH:-}
+      AI_MODEL_JUDGMENT: ${AI_MODEL_JUDGMENT:-}
+      AI_MODEL_TRAINER: ${AI_MODEL_TRAINER:-}
+    ports:
+      - "4000:4000"
+    # Push the schema on every start — a no-op once it already matches, so
+    # this is safe across restarts. Uses the local .bin shim directly rather
+    # than `pnpm exec`, so this doesn't need corepack to fetch pnpm over the
+    # network at container start.
+    #
+    # Demo data is NOT seeded here: seed.ts uses plain .create() calls (not
+    # upserts), so it's only safe to run once against an empty database. On
+    # first bring-up, after `docker compose up -d`, run it by hand:
+    #   docker compose exec api ./node_modules/.bin/tsx prisma/seed.ts
+    command: >
+      sh -c "
+        ./node_modules/.bin/prisma db push --schema=prisma/schema.postgres.prisma --skip-generate &&
+        node dist/index.js
+      "
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  db-data:

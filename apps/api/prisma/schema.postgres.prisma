@@ -1,0 +1,208 @@
+// Production/Docker variant of schema.prisma, swapping the datasource to
+// Postgres. Models are kept identical to the SQLite schema (same String
+// columns for enum-like/JSON fields) rather than switching to Postgres's
+// native enum/Json types, so the generated Prisma Client's TypeScript API
+// — and every app-layer zod parse/stringify around it — stays unchanged
+// between dev (SQLite) and production (Postgres). See schema.prisma for
+// field-by-field comments; keep the two files in sync by hand.
+//
+// Usage:
+//   pnpm --filter @parishodh/api exec prisma generate --schema=prisma/schema.postgres.prisma
+//   pnpm --filter @parishodh/api exec prisma db push --schema=prisma/schema.postgres.prisma
+// (db push rather than a migrations/ history: this schema has no Postgres
+// instance to generate real migrations against in this environment. For a
+// production rollout, replace this with `prisma migrate dev`-generated
+// migrations once you have one.)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           String // Role: LEARNER | TRAINER | ADMIN
+  team           String?
+  avatarInitials String
+  avatarColor    String
+  createdAt      DateTime @default(now())
+
+  enrollments        Enrollment[]
+  assessmentAttempts AssessmentAttempt[]
+  liveTasksAssigned  LiveTask[]           @relation("AssigneeTasks")
+  liveTasksCreated   LiveTask[]           @relation("AssignedByTasks")
+}
+
+model Course {
+  id          String @id @default(cuid())
+  title       String
+  subtitle    String
+  moduleCount Int
+
+  modules     Module[]
+  enrollments Enrollment[]
+  assessments Assessment[]
+}
+
+model Module {
+  id       String @id @default(cuid())
+  courseId String
+  order    Int
+  title    String
+
+  course Course @relation(fields: [courseId], references: [id])
+}
+
+model Enrollment {
+  id               String @id @default(cuid())
+  userId           String
+  courseId         String
+  completedModules Int
+  status           String // EnrollmentStatus: NOT_STARTED | IN_PROGRESS | COMPLETED
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+}
+
+model Assessment {
+  id            String @id @default(cuid())
+  courseId      String
+  title         String
+  questionCount Int
+  passMark      Int
+
+  course   Course               @relation(fields: [courseId], references: [id])
+  attempts AssessmentAttempt[]
+}
+
+model AssessmentAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  assessmentId String
+  score        Int
+  passed       Boolean
+  takenAt      DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id])
+  assessment Assessment @relation(fields: [assessmentId], references: [id])
+}
+
+model Scenario {
+  id                   String @id @default(cuid())
+  title                String
+  product              String
+  customerName         String
+  customerInitials     String
+  customerPersona      String
+  requirement          String
+  intent               String
+  preferredColour      String
+  objective            String
+  openingLine          String
+  hiddenFacts          String // JSON: Record<string, string>
+  objections           String // JSON: Objection[]
+  stages               String // JSON: Stage[]
+  captureDefinitions   String // JSON: CaptureDefinition[]
+  rubric               String // JSON: RubricCriterion[]
+  capabilityDimensions String // JSON: CapabilityDimensionDef[]
+  mode                 String // ScenarioMode: GUIDED | ASSESSMENT | SCRIPTED
+  goldenTranscript     String // JSON: GoldenTranscriptTurn[]
+  satisfactionStart    Int
+
+  liveTasks LiveTask[]
+}
+
+model LiveTask {
+  id           String    @id @default(cuid())
+  scenarioId   String
+  assigneeId   String
+  assignedById String
+  status       String // LiveTaskStatus: ASSIGNED | IN_PROGRESS | COMPLETED
+  dueAt        DateTime?
+  createdAt    DateTime  @default(now())
+
+  scenario   Scenario     @relation(fields: [scenarioId], references: [id])
+  assignee   User         @relation("AssigneeTasks", fields: [assigneeId], references: [id])
+  assignedBy User         @relation("AssignedByTasks", fields: [assignedById], references: [id])
+  sessions   SimSession[]
+}
+
+model SimSession {
+  id           String    @id @default(cuid())
+  liveTaskId   String
+  startedAt    DateTime?
+  endedAt      DateTime?
+  currentStage String?
+  satisfaction Int       @default(30)
+  status       String    @default("WAITING") // SimSessionStatus: WAITING | RINGING | ACTIVE | ENDED
+
+  liveTask         LiveTask           @relation(fields: [liveTaskId], references: [id])
+  turns            Turn[]
+  captures         Capture[]
+  criterionResults CriterionResult[]
+  report           CapabilityReport?
+}
+
+model Turn {
+  id                String    @id @default(cuid())
+  sessionId         String
+  index             Int
+  speaker           String // Speaker: LEARNER | CUSTOMER
+  text              String
+  stage             String
+  suggestedText     String?
+  adherence         Float?
+  satisfactionAfter Int?
+  startedAt         DateTime  @default(now())
+  endedAt           DateTime?
+
+  session  SimSession @relation(fields: [sessionId], references: [id])
+  captures Capture[]
+}
+
+model Capture {
+  id         String   @id @default(cuid())
+  sessionId  String
+  key        String
+  label      String
+  value      String
+  turnId     String?
+  capturedAt DateTime @default(now())
+
+  session SimSession @relation(fields: [sessionId], references: [id])
+  turn    Turn?       @relation(fields: [turnId], references: [id])
+}
+
+model CriterionResult {
+  id           String   @id @default(cuid())
+  sessionId    String
+  criterionKey String
+  met          Boolean
+  evidence     String
+  score        Int
+  createdAt    DateTime @default(now())
+
+  session SimSession @relation(fields: [sessionId], references: [id])
+}
+
+model CapabilityReport {
+  id           String   @id @default(cuid())
+  sessionId    String   @unique
+  dimensions   String // JSON: CapabilityDimensionScore[]
+  overallScore Int
+  verdict      String
+  strengths    String // JSON: string[]
+  improvements String // JSON: string[]
+  createdAt    DateTime @default(now())
+
+  session SimSession @relation(fields: [sessionId], references: [id])
+}
