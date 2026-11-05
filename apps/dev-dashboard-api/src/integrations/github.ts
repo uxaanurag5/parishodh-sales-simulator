@@ -22,6 +22,7 @@ export interface GithubSummary {
   owner?: string;
   repo?: string;
   login?: string;
+  branch?: string;
   openPRs?: number;
   mergedPRs?: number;
   prsAuthored?: number;
@@ -36,7 +37,19 @@ interface SearchIssue {
   pull_request?: { merged_at: string | null };
 }
 
-export async function getGithubSummary(days: number): Promise<GithubSummary> {
+export async function getGithubBranches(): Promise<string[]> {
+  const token = getGithubToken();
+  const repo = getGithubRepo();
+  if (!token || !repo) return [];
+  try {
+    const branches = await ghFetch<{ name: string }[]>(`${API}/repos/${repo}/branches?per_page=100`, token);
+    return branches.map((b) => b.name);
+  } catch {
+    return [];
+  }
+}
+
+export async function getGithubSummary(days: number, branch?: string): Promise<GithubSummary> {
   const token = getGithubToken();
   const repo = getGithubRepo();
   if (!token) return { configured: false, reason: "No GITHUB_TOKEN and `gh auth token` is unavailable." };
@@ -52,17 +65,18 @@ export async function getGithubSummary(days: number): Promise<GithubSummary> {
   }
 
   const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const baseFilter = branch ? `+base:${branch}` : "";
 
   const [authored, reviewed, openPrs] = await Promise.all([
     ghFetch<{ total_count: number; items: SearchIssue[] }>(
-      `${API}/search/issues?q=repo:${repo}+type:pr+author:${login}+updated:>=${since}&sort=updated&order=desc&per_page=20`,
+      `${API}/search/issues?q=repo:${repo}+type:pr+author:${login}${baseFilter}+updated:>=${since}&sort=updated&order=desc&per_page=20`,
       token,
     ),
     ghFetch<{ total_count: number; items: SearchIssue[] }>(
-      `${API}/search/issues?q=repo:${repo}+type:pr+reviewed-by:${login}+updated:>=${since}&sort=updated&order=desc&per_page=20`,
+      `${API}/search/issues?q=repo:${repo}+type:pr+reviewed-by:${login}${baseFilter}+updated:>=${since}&sort=updated&order=desc&per_page=20`,
       token,
     ),
-    ghFetch<{ total_count: number }>(`${API}/search/issues?q=repo:${repo}+type:pr+state:open`, token),
+    ghFetch<{ total_count: number }>(`${API}/search/issues?q=repo:${repo}+type:pr+state:open${baseFilter}`, token),
   ]);
 
   const mergedAuthored = authored.items.filter((i) => i.pull_request?.merged_at);
@@ -87,6 +101,7 @@ export async function getGithubSummary(days: number): Promise<GithubSummary> {
     owner,
     repo: repoName,
     login,
+    branch,
     openPRs: openPrs.total_count,
     mergedPRs: mergedAuthored.length,
     prsAuthored: authored.total_count,

@@ -9,6 +9,7 @@ import { ActivityFeed } from "./components/ActivityFeed";
 import { IntegrationsPanel } from "./components/IntegrationsPanel";
 import { CoworkActivityCard } from "./components/CoworkActivityCard";
 import { CredentialForm } from "./components/CredentialForm";
+import { FilterPanel } from "./components/FilterPanel";
 import {
   useGitSummary,
   useGithubSummary,
@@ -30,9 +31,16 @@ function Panel({ title, children, className = "" }: { title?: string; children: 
   );
 }
 
-function DashboardPage({ days, onOpenSettings }: { days: number; onOpenSettings: () => void }) {
-  const git = useGitSummary(days);
-  const github = useGithubSummary(days);
+interface DashboardPageProps {
+  days: number;
+  branch: string;
+  onBranchChange: (branch: string) => void;
+  onOpenSettings: () => void;
+}
+
+function DashboardPage({ days, branch, onBranchChange, onOpenSettings }: DashboardPageProps) {
+  const git = useGitSummary(days, branch);
+  const github = useGithubSummary(days, branch);
   const claude = useClaudeUsage(Math.min(days, 31));
   const coverage = useCoverage();
   const integrations = useIntegrationsStatus();
@@ -89,7 +97,7 @@ function DashboardPage({ days, onOpenSettings }: { days: number; onOpenSettings:
         </div>
 
         <div className="flex flex-wrap gap-5">
-          <Panel title="Commits per day" className="min-w-[320px] flex-[2_1_420px]">
+          <Panel title={`Commits per day · ${g.branch}`} className="min-w-[320px] flex-[2_1_420px]">
             <CommitsChart dailyCommits={g.dailyCommits} />
           </Panel>
           <Panel title="Test Coverage" className="min-w-[240px] flex-[1_1_260px]">
@@ -143,6 +151,8 @@ function DashboardPage({ days, onOpenSettings }: { days: number; onOpenSettings:
       </div>
 
       <div className="flex min-w-[260px] max-w-[320px] flex-[1_1_280px] flex-col gap-5">
+        <FilterPanel branch={branch} onBranchChange={onBranchChange} />
+
         <IntegrationsPanel
           github={gh}
           claude={cl}
@@ -232,6 +242,7 @@ function SettingsPage() {
 export default function App() {
   const [page, setPage] = useState<"dashboard" | "integrations">("dashboard");
   const [days, setDays] = useState(30);
+  const [branch, setBranch] = useState("");
 
   return (
     <div className="flex min-h-screen w-full items-stretch bg-panel">
@@ -241,7 +252,12 @@ export default function App() {
           <Topbar developerName="Anurag Uxa" developerRole="Developer" days={days} onDaysChange={setDays} />
         )}
         {page === "dashboard" ? (
-          <DashboardPage days={days} onOpenSettings={() => setPage("integrations")} />
+          <DashboardPage
+            days={days}
+            branch={branch}
+            onBranchChange={setBranch}
+            onOpenSettings={() => setPage("integrations")}
+          />
         ) : (
           <SettingsPage />
         )}

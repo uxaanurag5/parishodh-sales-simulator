@@ -7,6 +7,7 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 export interface GitSummary {
+  branch: string;
   authorName: string;
   authorEmail: string;
   totalCommits: number;
@@ -23,6 +24,7 @@ export interface GithubSummary {
   owner?: string;
   repo?: string;
   login?: string;
+  branch?: string;
   openPRs?: number;
   mergedPRs?: number;
   prsAuthored?: number;
@@ -79,17 +81,34 @@ export interface Credential {
   apiToken: string;
 }
 
-export function useGitSummary(days: number) {
+export interface BranchInfo {
+  name: string;
+  isCurrent: boolean;
+}
+
+export function useGitBranches() {
   return useQuery({
-    queryKey: ["git-summary", days],
-    queryFn: () => getJson<GitSummary>(`/api/git/summary?days=${days}`),
+    queryKey: ["git-branches"],
+    queryFn: () => getJson<{ branches: BranchInfo[] }>("/api/git/branches"),
+    staleTime: 60_000,
   });
 }
 
-export function useGithubSummary(days: number) {
+function branchQuery(branch: string): string {
+  return branch ? `&branch=${encodeURIComponent(branch)}` : "";
+}
+
+export function useGitSummary(days: number, branch: string) {
   return useQuery({
-    queryKey: ["github-summary", days],
-    queryFn: () => getJson<GithubSummary>(`/api/github/summary?days=${days}`),
+    queryKey: ["git-summary", days, branch],
+    queryFn: () => getJson<GitSummary>(`/api/git/summary?days=${days}${branchQuery(branch)}`),
+  });
+}
+
+export function useGithubSummary(days: number, branch: string) {
+  return useQuery({
+    queryKey: ["github-summary", days, branch],
+    queryFn: () => getJson<GithubSummary>(`/api/github/summary?days=${days}${branchQuery(branch)}`),
   });
 }
 

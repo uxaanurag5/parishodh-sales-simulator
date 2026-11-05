@@ -10,6 +10,7 @@ export interface CommitRecord {
 }
 
 export interface GitSummary {
+  branch: string;
   authorName: string;
   authorEmail: string;
   totalCommits: number;
@@ -36,20 +37,81 @@ function getConfiguredIdentity(): { name: string; email: string } {
   return { name, email };
 }
 
+export function getCurrentBranch(): string {
+  try {
+    const name = git(["branch", "--show-current"]).trim();
+    if (name) return name;
+  } catch {
+    // detached HEAD or similar — fall through
+  }
+  return "HEAD";
+}
+
+export interface BranchInfo {
+  name: string;
+  isCurrent: boolean;
+}
+
+export function listBranches(): BranchInfo[] {
+  const current = getCurrentBranch();
+  const seen = new Set<string>();
+  const branches: BranchInfo[] = [];
+
+  const addRaw = (raw: string) => {
+    const name = raw
+      .trim()
+      .replace(/^origin\//, "")
+      .replace(/^remotes\/origin\//, "");
+    if (!name || name === "HEAD" || seen.has(name)) return;
+    seen.add(name);
+    branches.push({ name, isCurrent: name === current });
+  };
+
+  try {
+    git(["for-each-ref", "--format=%(refname:short)", "refs/heads/"])
+      .split("\n")
+      .forEach(addRaw);
+  } catch {
+    // no local branches yet
+  }
+  try {
+    git(["for-each-ref", "--format=%(refname)", "refs/remotes/origin/"])
+      .split("\n")
+      .filter((raw) => !raw.endsWith("/HEAD"))
+      .map((raw) => raw.replace(/^refs\/remotes\//, ""))
+      .forEach(addRaw);
+  } catch {
+    // no remote-tracking branches fetched locally
+  }
+  if (branches.length === 0) branches.push({ name: current, isCurrent: true });
+  return branches;
+}
+
+/** Resolves a user-chosen branch name to a ref git can actually log, trying the
+ * local branch first and falling back to its remote-tracking counterpart. */
+function resolveRef(branch: string | undefined): string {
+  if (!branch) return getCurrentBranch();
+  for (const candidate of [branch, `origin/${branch}`]) {
+    try {
+      git(["rev-parse", "--verify", "--quiet", candidate]);
+      return candidate;
+    } catch {
+      // try the next candidate
+    }
+  }
+  throw new Error(`Unknown branch "${branch}".`);
+}
+
 const SEP = "\u0001";
 
-export function getGitSummary(days: number): GitSummary {
+export function getGitSummary(days: number, branch?: string): GitSummary {
+  const ref = resolveRef(branch);
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
   const { name, email } = getConfiguredIdentity();
 
-  const totalCommits = Number(git(["rev-list", "--count", "HEAD"]).trim() || "0");
+  const totalCommits = Number(git(["rev-list", "--count", ref]).trim() || "0");
 
-  const log = git([
-    "log",
-    `--since=${since}`,
-    `--format=%H${SEP}%an${SEP}%aI${SEP}%s`,
-    "--numstat",
-  ]);
+  const log = git(["log", ref, `--since=${since}`, `--format=%H${SEP}%an${SEP}%aI${SEP}%s`, "--numstat"]);
 
   const commits: CommitRecord[] = [];
   const dailyMap = new Map<string, number>();
@@ -84,6 +146,7 @@ export function getGitSummary(days: number): GitSummary {
   }
 
   return {
+    branch: branch ?? getCurrentBranch(),
     authorName: name,
     authorEmail: email,
     totalCommits,
