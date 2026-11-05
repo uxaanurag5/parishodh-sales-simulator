@@ -8,6 +8,7 @@
   "packageManager": "pnpm@12.11.2",
   "scripts": {
     "dev": "pnpm --filter @parishodh/shared run build && concurrently -n api,web -c green,blue \"pnpm --filter @parishodh/api dev\" \"pnpm --filter @parishodh/web dev\"",
+    "dev:dashboard": "concurrently -n dash-api,dash-web -c green,blue \"pnpm --filter @parishodh/dev-dashboard-api dev\" \"pnpm --filter @parishodh/dev-dashboard-web dev\"",
     "build": "pnpm -r run build",
     "test": "pnpm --filter @parishodh/shared run build && pnpm -r run test",
     "test:e2e": "pnpm --filter @parishodh/shared run build && pnpm --filter @parishodh/api exec prisma generate && playwright test",

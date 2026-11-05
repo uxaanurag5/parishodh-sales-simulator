@@ -85,6 +85,7 @@ For `docker compose up`, see the root [`.env.example`](./.env.example) instead (
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Builds `packages/shared`, then runs the web app and API together |
+| `pnpm dev:dashboard` | Runs the internal Developer Dashboard (`apps/dev-dashboard-api` + `apps/dev-dashboard-web`, ports 4100/5180) — see [apps/dev-dashboard-api/README.md](apps/dev-dashboard-api/README.md) |
 | `pnpm build` | Typechecks and builds all workspaces (shared first) |
 | `pnpm test` | Runs all workspace unit/integration test suites (shared + api; web has none yet) |
 | `pnpm run test:e2e` | Runs the Playwright e2e suite — **stop any running `pnpm dev` first** (it starts its own dev servers against a dedicated throwaway DB; see [Testing](#testing)) |
@@ -119,6 +120,8 @@ docker compose exec api ./node_modules/.bin/tsx prisma/seed.ts   # once, on firs
 ```
 apps/web       React + Vite + TypeScript + Tailwind frontend
 apps/api       Fastify + Socket.IO + Prisma backend
+apps/dev-dashboard-web   Internal Developer Dashboard frontend (live git/GitHub/Claude/Jira/Confluence data)
+apps/dev-dashboard-api   Internal Developer Dashboard backend
 packages/shared  Shared TypeScript types and zod schemas (built before anything consumes it — see pnpm dev/build/test)
 e2e/           Playwright end-to-end tests
 ```
